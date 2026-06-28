@@ -1,132 +1,75 @@
-# SaaS POS System - Complete Point of Sale Solution
+# NexusERP
 
-A comprehensive, multi-business point-of-sale system built with modern technologies for managing multiple shops, locations, inventory, accounting, and sales.
+An all-in-one, multi-tenant **SaaS ERP** built with Next.js 16, TypeScript, Prisma 7 and PostgreSQL. It bundles four operational modules behind a single workspace with role-based auth:
 
-## 🎯 Key Features
+- **Point of Sale** — product catalog, inventory & stock movements, a touch-friendly POS terminal, sales/receipts, customers
+- **Human Resources** — employees, departments, attendance, leave requests/approvals, payroll
+- **Accounting** — chart of accounts, double-entry general journal, invoices, expenses, and live financial reports (P&L, Balance Sheet, Trial Balance)
+- **Manufacturing** — bills of materials (BOM), work orders, and production tracking that consumes raw materials and yields finished goods
 
-### Multiple Business/Shops
-- Set up unlimited businesses in the application
-- Separate inventory and accounting information for each business
-- Complete business isolation and data security
+Modules are integrated: POS sales, payroll runs, invoice payments and expenses automatically post double-entry journal entries, and completed work orders move stock between raw materials and finished goods.
 
-### Location & Storefront Management
-- Create multiple locations/storefronts/warehouses per business
-- Manage all locations simultaneously
-- Track stocks, purchases, and sales separately by location
-- Customize invoice layout and scheme per location
+## Tech stack
 
-### User & Role Management
-- Powerful user and role management system
-- Predefined roles (Admin, Cashier, Manager, Accountant)
-- Create custom roles with granular permissions
-- Unlimited user creation with role assignment
+- **Next.js 16** (App Router, Server Components, Server Actions)
+- **TypeScript**, **Tailwind CSS**
+- **Prisma 7** ORM with the `@prisma/adapter-pg` driver adapter
+- **PostgreSQL**
+- Custom JWT session auth (`jose` + `bcryptjs`), multi-tenant (every record scoped by `organizationId`)
 
-### Contacts Management
-- Manage customers and suppliers
-- Mark contacts as customers, suppliers, or both
-- View transaction history with contacts
-- Track credit/debit balances
-- Payment term management with due date alerts
+## Getting started
 
-### Product Management
-- Single and variable products
-- Product classification by Brand, Category, Sub-Category
-- Multiple unit support
-- SKU management with auto-generation
-- Low stock alerts
-- Auto-calculated selling price based on profit margin
+### 1. Database
 
-### Purchase Management
-- Easy purchase entry for multiple locations
-- Paid/Due purchase tracking
-- Discount and tax application
-- Due payment notifications
-
-### Sales & POS
-- Simplified AJAX-based POS interface
-- Default Walk-In-Customer support
-- Add customers directly from POS
-- Multiple payment options
-- Draft and final invoice options
-- Customizable invoice layouts
-
-### Expense Management
-- Easy expense entry and categorization
-- Location-based expense tracking
-- Comprehensive expense reports by category and location
-
-### Reports
-- Purchase & Sale Reports
-- Tax Reports
-- Contact/Ledger Reports
-- Stock Reports
-- Expense Reports
-- Trending Products Analysis
-- Multi-level drill-down capabilities
-
-## 🛠 Technology Stack
-
-- **Backend**: Node.js/Express.js
-- **Frontend**: React.js + Redux
-- **Database**: PostgreSQL
-- **Authentication**: JWT + OAuth2
-- **Real-time**: Socket.io
-- **Payment Integration**: Stripe, PayPal
-- **Reporting**: Chart.js, PDF generation
-- **Deployment**: Docker, AWS/Heroku
-
-## 📁 Project Structure
-
-```
-saas-pos/
-├── backend/
-│   ├── routes/
-│   └── app.js
-├── frontend/
-│   ├── src/
-│   └── package.json
-├── docs/
-├── docker-compose.yml
-├── .env.example
-└── README.md
-```
-
-## 🚀 Quick Start
-
-### Prerequisites
-- Node.js >= 16.0.0
-- npm >= 8.0.0
-- PostgreSQL >= 12
-- Docker (optional)
-
-### Installation
+A PostgreSQL database is required. For local development:
 
 ```bash
-# Clone the repository
-git clone https://github.com/VmuemaM/saas-pos.git
-cd saas-pos
-
-# Copy environment file
-cp .env.example .env
-
-# Install dependencies
-npm run install-all
-
-# Start with Docker
-docker-compose up
+docker run -d --name erp-postgres \
+  -e POSTGRES_USER=erp -e POSTGRES_PASSWORD=erp -e POSTGRES_DB=erp \
+  -p 5433:5432 postgres:16
 ```
 
-### Access the Application
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:5000
-- **Health Check**: http://localhost:5000/health
+### 2. Environment
 
-## 📚 Documentation
+Create `.env` (see `.env.example`):
 
-- [Installation Guide](./docs/INSTALLATION.md)
-- [Features Guide](./docs/FEATURES.md)
-- [Setup Guide](./docs/SETUP.md)
+```
+DATABASE_URL="postgresql://erp:erp@localhost:5433/erp?schema=public"
+AUTH_SECRET="change-me-to-a-long-random-string"
+```
 
-## 📄 License
+### 3. Install, migrate, seed, run
 
-MIT License
+```bash
+npm install
+npx prisma migrate deploy   # or: npx prisma migrate dev
+npm run db:seed             # optional demo data
+npm run dev
+```
+
+Visit http://localhost:3000.
+
+### Demo login (after seeding)
+
+```
+Email:    owner@demo.com
+Password: password123
+```
+
+Or create a fresh workspace from the **Sign up** page — a new organization is provisioned with a standard chart of accounts.
+
+## Scripts
+
+| Script | Description |
+| --- | --- |
+| `npm run dev` | Start the dev server |
+| `npm run build` | Production build |
+| `npm start` | Start the production server |
+| `npm run lint` | ESLint |
+| `npm run typecheck` | TypeScript checks |
+| `npm run db:seed` | Seed demo data |
+
+## Notes
+
+- Monetary values use `Float` for simplicity in this scaffold. For production accounting, migrate money columns to `Decimal` and handle serialization to client components accordingly.
+- This is **Phase 1** — it implements the core features of each module with a clean foundation to extend (deeper reporting, purchase orders, multi-currency, granular permissions, etc.).
