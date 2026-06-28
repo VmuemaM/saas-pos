@@ -1,0 +1,478 @@
+// ERP SaaS - multi-tenant schema
+// All business data is scoped by `organizationId` (tenant isolation).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Tenancy, users, RBAC
+// ---------------------------------------------------------------------------
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users           User[]
+  categories      Category[]
+  products        Product[]
+  customers       Customer[]
+  sales           Sale[]
+  inventoryMoves  InventoryMovement[]
+  departments     Department[]
+  employees       Employee[]
+  attendance      Attendance[]
+  leaveRequests   LeaveRequest[]
+  payrolls        Payroll[]
+  accounts        Account[]
+  journalEntries  JournalEntry[]
+  invoices        Invoice[]
+  expenses        Expense[]
+  boms            Bom[]
+  workOrders      WorkOrder[]
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MANAGER
+  STAFF
+}
+
+model User {
+  id             String       @id @default(cuid())
+  email          String       @unique
+  name           String
+  passwordHash   String
+  role           Role         @default(STAFF)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  sales Sale[]
+
+  @@index([organizationId])
+}
+
+// ---------------------------------------------------------------------------
+// POS / Inventory
+// ---------------------------------------------------------------------------
+
+model Category {
+  id             String       @id @default(cuid())
+  name           String
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  products       Product[]
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+}
+
+model Product {
+  id             String       @id @default(cuid())
+  name           String
+  sku            String
+  description    String?
+  price          Float        @default(0)
+  cost           Float        @default(0)
+  stockQty       Float        @default(0)
+  reorderLevel   Float        @default(0)
+  unit           String       @default("unit")
+  isRawMaterial  Boolean      @default(false)
+  categoryId     String?
+  category       Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  saleItems       SaleItem[]
+  inventoryMoves  InventoryMovement[]
+  bomsProduced    Bom[]              @relation("BomProduct")
+  bomComponents   BomItem[]
+  workOrders      WorkOrder[]
+
+  @@unique([organizationId, sku])
+  @@index([organizationId])
+}
+
+model Customer {
+  id             String       @id @default(cuid())
+  name           String
+  email          String?
+  phone          String?
+  address        String?
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  sales    Sale[]
+  invoices Invoice[]
+
+  @@index([organizationId])
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  MOBILE
+  BANK
+}
+
+model Sale {
+  id             String        @id @default(cuid())
+  number         String
+  customerId     String?
+  customer       Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  subtotal       Float         @default(0)
+  taxRate        Float         @default(0)
+  tax            Float         @default(0)
+  discount       Float         @default(0)
+  total          Float         @default(0)
+  paymentMethod  PaymentMethod @default(CASH)
+  cashierId      String?
+  cashier        User?         @relation(fields: [cashierId], references: [id], onDelete: SetNull)
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
+
+  items SaleItem[]
+
+  @@index([organizationId])
+}
+
+model SaleItem {
+  id         String  @id @default(cuid())
+  saleId     String
+  sale       Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  quantity   Float
+  unitPrice  Float
+  total      Float
+
+  @@index([saleId])
+}
+
+enum InventoryMoveType {
+  PURCHASE
+  SALE
+  ADJUSTMENT
+  PRODUCTION_IN
+  PRODUCTION_OUT
+}
+
+model InventoryMovement {
+  id             String            @id @default(cuid())
+  productId      String
+  product        Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  type           InventoryMoveType
+  quantity       Float
+  note           String?
+  organizationId String
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime          @default(now())
+
+  @@index([organizationId])
+  @@index([productId])
+}
+
+// ---------------------------------------------------------------------------
+// HRM
+// ---------------------------------------------------------------------------
+
+model Department {
+  id             String       @id @default(cuid())
+  name           String
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  employees      Employee[]
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  ON_LEAVE
+  TERMINATED
+}
+
+model Employee {
+  id             String         @id @default(cuid())
+  firstName      String
+  lastName       String
+  email          String
+  phone          String?
+  position       String?
+  salary         Float          @default(0)
+  hireDate       DateTime       @default(now())
+  status         EmployeeStatus @default(ACTIVE)
+  departmentId   String?
+  department     Department?    @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  organizationId String
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime       @default(now())
+
+  attendance    Attendance[]
+  leaveRequests LeaveRequest[]
+  payrolls      Payroll[]
+
+  @@index([organizationId])
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  HALF_DAY
+}
+
+model Attendance {
+  id             String           @id @default(cuid())
+  employeeId     String
+  employee       Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  date           DateTime
+  checkIn        DateTime?
+  checkOut       DateTime?
+  status         AttendanceStatus @default(PRESENT)
+  organizationId String
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([employeeId])
+}
+
+enum LeaveType {
+  ANNUAL
+  SICK
+  UNPAID
+  MATERNITY
+  OTHER
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model LeaveRequest {
+  id             String       @id @default(cuid())
+  employeeId     String
+  employee       Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  type           LeaveType    @default(ANNUAL)
+  startDate      DateTime
+  endDate        DateTime
+  reason         String?
+  status         LeaveStatus  @default(PENDING)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+}
+
+enum PayrollStatus {
+  DRAFT
+  APPROVED
+  PAID
+}
+
+model Payroll {
+  id             String        @id @default(cuid())
+  employeeId     String
+  employee       Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  periodStart    DateTime
+  periodEnd      DateTime
+  basicSalary    Float         @default(0)
+  allowances     Float         @default(0)
+  deductions     Float         @default(0)
+  tax            Float         @default(0)
+  netPay         Float         @default(0)
+  status         PayrollStatus @default(DRAFT)
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
+
+  @@index([organizationId])
+}
+
+// ---------------------------------------------------------------------------
+// Accounting
+// ---------------------------------------------------------------------------
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+model Account {
+  id             String       @id @default(cuid())
+  code           String
+  name           String
+  type           AccountType
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  journalLines JournalLine[]
+  expenses     Expense[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId])
+}
+
+model JournalEntry {
+  id             String        @id @default(cuid())
+  date           DateTime      @default(now())
+  reference      String?
+  description    String?
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
+
+  lines JournalLine[]
+
+  @@index([organizationId])
+}
+
+model JournalLine {
+  id        String       @id @default(cuid())
+  entryId   String
+  entry     JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  accountId String
+  account   Account      @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  debit     Float        @default(0)
+  credit    Float        @default(0)
+
+  @@index([entryId])
+  @@index([accountId])
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+model Invoice {
+  id             String        @id @default(cuid())
+  number         String
+  customerId     String?
+  customer       Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  issueDate      DateTime      @default(now())
+  dueDate        DateTime
+  subtotal       Float         @default(0)
+  tax            Float         @default(0)
+  total          Float         @default(0)
+  status         InvoiceStatus @default(DRAFT)
+  notes          String?
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
+
+  items InvoiceItem[]
+
+  @@index([organizationId])
+}
+
+model InvoiceItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Float   @default(1)
+  unitPrice   Float   @default(0)
+  total       Float   @default(0)
+
+  @@index([invoiceId])
+}
+
+model Expense {
+  id             String       @id @default(cuid())
+  date           DateTime     @default(now())
+  vendor         String?
+  category       String?
+  description    String?
+  amount         Float        @default(0)
+  accountId      String?
+  account        Account?     @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+}
+
+// ---------------------------------------------------------------------------
+// Manufacturing
+// ---------------------------------------------------------------------------
+
+model Bom {
+  id             String       @id @default(cuid())
+  name           String
+  productId      String
+  product        Product      @relation("BomProduct", fields: [productId], references: [id], onDelete: Cascade)
+  outputQty      Float        @default(1)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  items      BomItem[]
+  workOrders WorkOrder[]
+
+  @@index([organizationId])
+}
+
+model BomItem {
+  id        String  @id @default(cuid())
+  bomId     String
+  bom       Bom     @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  quantity  Float   @default(1)
+
+  @@index([bomId])
+}
+
+enum WorkOrderStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model WorkOrder {
+  id             String          @id @default(cuid())
+  number         String
+  bomId          String?
+  bom            Bom?            @relation(fields: [bomId], references: [id], onDelete: SetNull)
+  productId      String
+  product        Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
+  quantity       Float           @default(1)
+  status         WorkOrderStatus @default(PLANNED)
+  startDate      DateTime?
+  dueDate        DateTime?
+  completedAt    DateTime?
+  notes          String?
+  organizationId String
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime        @default(now())
+
+  @@index([organizationId])
+}
